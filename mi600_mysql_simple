@@ -1,0 +1,91 @@
+#!/bin/bash
+#
+#   DEVELOPMENT VERSION
+#
+# mi600_mysql_simple
+# MIT License Copyright (c) 2023 MartinRas80
+# https://github.com/MartinRas80/mi600_mysql_simple
+# 
+# Mainly inspired by dr-ni and his mi600 project but I intended to provide more data and push it to a mysql database
+#
+# A simple bash command-line tool for direct solar data requests
+# to the inverter Bosswerk mi600.
+# It reads the actual solar power and the cumulative daily and total earned energy.
+#
+# Requirements: curl must be installed.
+#
+#
+
+#reading config data
+. /etc/mi600_mysql_simple.conf
+#expected parameters from config file:
+#host=ipaddress
+#username=username
+#password=password
+auth="$username:$password"
+#mysql_table_name
+#mysql_user
+#mysql_password
+
+if [ $# -gt 3 ]
+then
+  dat=$4
+  val=''
+  [ "$dat" = "webdata_today_e" ] && val=kWh
+  [ "$dat" = "webdata_total_e" ] && val=kWh
+  [ "$dat" = "webdata_now_p" ] && val=W
+fi
+ping -c3 $host > /dev/null 2>&1
+if [ $? -eq 0 ]
+then
+  #Request data
+  page=$(curl -s -u "$auth" "$host"/status.html)
+  #test if some value exists
+  p=$(echo "$page" | grep "webdata_today_e = " | awk -F '"' '{print $2}')
+  if [ "$p" = "" ]
+  then
+    sleep 3
+    page=$(curl -s -u "$auth" "$host"/status.html)
+    p=$(echo "$page" | grep "webdata_today_e = " | awk -F '"' '{print $2}')
+  fi
+  if [ "$p" = "" ]
+  then
+    sleep 3
+    page=$(curl -s -u "$auth" "$host"/status.html)
+    p=$(echo "$page" | grep "webdata_today_e = " | awk -F '"' '{print $2}')
+  fi
+  if [ "$p" = "" ]
+  then
+    sleep 3
+    page=$(curl -s -u "$auth" "$host"/status.html)
+    p=$(echo "$page" | grep "webdata_today_e = " | awk -F '"' '{print $2}')
+  fi
+  #from here this is data usage
+  if [ "$p" != "" ]
+  then
+    val1=$(echo "$page" | grep "webdata_total_e = " | awk -F '"' '{print $2}')
+    #echo "mysql -u $mysql_user -p$mysql_password mha_proj -e 'UPDATE $mysql_table_name SET f_wert_old=f_wert, signal_was_good=signal_good WHERE ID=149'"
+    mysql -u $mysql_user -p$mysql_password mha_proj -e "UPDATE $mysql_table_name SET f_wert_old=f_wert, signal_was_good=signal_good WHERE ID=149"
+    #echo "mysql -u $mysql_user -p$mysql_password mha_proj -e 'UPDATE $mysql_table_name SET f_wert=$val1, signal_good=1 WHERE ID=149'"
+    mysql -u $mysql_user -p$mysql_password mha_proj -e "UPDATE $mysql_table_name SET f_wert=$val1, signal_good=1 WHERE ID=149"
+
+    val2=$(echo "$page" | grep "webdata_today_e = " | awk -F '"' '{print $2}')
+    #echo "mysql -u $mysql_user -p$mysql_password mha_proj -e 'UPDATE $mysql_table_name SET f_wert_old=f_wert, signal_was_good=signal_good WHERE ID=150'"
+    mysql -u $mysql_user -p$mysql_password mha_proj -e "UPDATE $mysql_table_name SET f_wert_old=f_wert, signal_was_good=signal_good WHERE ID=150"
+    #echo "mysql -u $mysql_user -p$mysql_password mha_proj -e 'UPDATE $mysql_table_name SET f_wert=$val2, signal_good=1 WHERE ID=150'"
+    mysql -u $mysql_user -p$mysql_password mha_proj -e "UPDATE $mysql_table_name SET f_wert=$val2, signal_good=1 WHERE ID=150"
+
+    val3=$(echo "$page" | grep "webdata_now_p = " | awk -F '"' '{print $2}')
+    #echo "mysql -u $mysql_user -p$mysql_password mha_proj -e 'UPDATE $mysql_table_name SET f_wert_old=f_wert, signal_was_good=signal_good WHERE ID=151'"
+    mysql -u $mysql_user -p$mysql_password mha_proj -e "UPDATE $mysql_table_name SET f_wert_old=f_wert, signal_was_good=signal_good WHERE ID=151"
+    #echo "mysql -u $mysql_user -p$mysql_password mha_proj -e 'UPDATE $mysql_table_name SET f_wert=$val3, signal_good=1 WHERE ID=151'"
+    mysql -u $mysql_user -p$mysql_password mha_proj -e "UPDATE $mysql_table_name SET f_wert=$val3, signal_good=1 WHERE ID=151"
+	  #mysql -u "$mysql_user" -p$mysql_password mha_proj -e "UPDATE $mysql_table_name SET f_wert=$p,signal_good=1 WHERE ID=149"
+    exit 0
+  fi
+  echo "Error: could not read data"
+  exit 1
+else
+  echo "Error: connection to $host failed"
+  exit 1
+fi
